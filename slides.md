@@ -298,6 +298,15 @@ The coupling effect
 
 ---
 
+## Reducing the cost
+
+- Use coverage information to only run tests on mutants where the changed code
+  is covered by the test.
+
+- Mutate bytecode to save having to compile each mutant.
+
+---
+
 ## Test suite optimisation
 
 Use mutant analysis to optimise test suites
@@ -316,9 +325,7 @@ Use mutant analysis to optimise test suites
 - Java: PITest
 - OCaml: 🙁
 
-The best mutation testing tools work on bytecode or compiled code to avoid the
-cost of recompiling every mutant. Could `ppx` be used to generate mutants for
-OCaml code?
+Potential project: Could `ppx` be used to generate mutants for OCaml code?
 
 ---
 
