@@ -1,0 +1,339 @@
+---
+title: Mutant testing
+theme: moon
+revealOptions:
+    transition: 'none'
+css: slides.css
+---
+
+## Kill the mutants!
+
+### Otherwise known as "mutant testing" or "mutation testing"
+
+---
+
+## What is it?
+
+- Testing your tests to test that they test what you think they test.
+
+- Generate variations of your program ("mutants") and checking that your test
+  suite fails (i.e. "kills" them)
+
+- A sort of fuzzing
+
+---
+
+## Why?
+
+Because coverage is a poor measure of test quality.
+
+Example: A simple Python function:
+
+```python
+def increment(n):
+    return n + 1
+```
+
+and a (flawed) test suite for it:
+
+```python
+def test_increment():
+    increment(1)
+    assert True
+```
+
+Not only does this test pass...
+
+```bash
+$ pytest
+========================================== test session starts ==========================================
+platform linux -- Python 3.6.7, pytest-4.5.0, py-1.8.0, pluggy-0.11.0
+rootdir: /home/ian/notes/mutants/mutmut
+plugins: cov-2.7.1
+collected 1 item
+
+test/test_increment.py .                                                                          [100%]
+
+======================================= 1 passed in 0.01 seconds ========================================
+```
+
+---
+
+## Coverage
+
+... but we have 100% coverage also.
+
+```bash
+$ pip install pytest-cov
+$ pytest --cov=src/
+========================================== test session starts ==========================================
+platform linux -- Python 3.6.7, pytest-4.5.0, py-1.8.0, pluggy-0.11.0
+rootdir: /home/ian/notes/mutants/mutmut
+plugins: cov-2.7.1
+collected 1 item
+
+test/test_increment.py .                                                                          [100%]
+
+----------- coverage: platform linux, python 3.6.7-final-0 -----------
+Name               Stmts   Miss  Cover
+--------------------------------------
+src/increment.py       2      0   100%
+
+
+======================================= 1 passed in 0.02 seconds ========================================
+```
+
+---
+
+## Mutant testing to the rescue
+
+We'll use `mutmut` (<https://pypi.org/project/mutmut/>):
+
+```bash
+$ pip install mutmut
+$ mutmut run
+
+- Mutation testing starting -
+
+These are the steps:
+1. A full test suite run will be made to make sure we
+   can run the tests successfully and we know how long
+   it takes (to detect infinite loops for example)
+2. Mutants will be generated and checked
+
+Results are stored in .mutmut-cache.
+Print found mutants with `mutmut results`.
+
+Legend for output:
+🎉 Killed mutants.   The goal is for everything to end up in this bucket.
+⏰ Timeout.          Test suite took 10 times as long as the baseline so were killed.
+🤔 Suspicious.       Tests took a long time, but not long enough to be fatal.
+🙁 Survived.         This means your tests needs to be expanded.
+
+mutmut cache is out of date, clearing it...
+1. Running tests without mutations
+⠏ Running... Done
+
+2. Checking mutants
+⠼ 2/2  🎉 0  ⏰ 0  🤔 0  🙁 2
+```
+
+The tool created 2 mutants, and both survived our test!
+
+---
+
+## What are Mutants?
+
+```bash
+$ mutmut results
+To apply a mutant on disk:
+    mutmut apply <id>
+
+To show a mutant:
+    mutmut show <id>
+
+
+Survived 🙁 (2)
+
+---- src/increment.py (2) ----
+
+1, 2
+$ mutmut show 1
+--- src/increment.py
++++ src/increment.py
+@@ -1,3 +1,3 @@
+ def increment(n):
+-    return n + 1
++    return n - 1
+ 
+
+$ mutmut show 2
+--- src/increment.py
++++ src/increment.py
+@@ -1,3 +1,3 @@
+ def increment(n):
+-    return n + 1
++    return n + 2
+```
+
+---
+
+## Improve the test
+
+```python
+def test_increment():
+  assert increment(1) > 1
+```
+
+Still not a good test, but better...
+
+```bash
+$ mutmut run
+
+...
+
+2. Checking mutants
+⠸ 2/2  🎉 1  ⏰ 0  🤔 0  🙁 1
+```
+
+And it killed one of the mutants.
+
+---
+
+## Improve the test again
+
+```python
+def test_increment():
+  assert increment(1) == 2
+```
+
+Run `mutmut` again:
+
+```bash
+$ mutmut run
+
+...
+
+2. Checking mutants
+⠸ 2/2  🎉 2  ⏰ 0  🤔 0  🙁 0
+```
+
+All mutants killed!
+
+Note: And the test suite is definitely improved, and we can have more confidence
+in its results.
+
+---
+
+## How does it work?
+
+Automatically generate mutants by applying various transformations to either the
+source or the compiled code.
+
+- Replace operators with alternatives: `<` gets changed to `<=` or `>` or `>=`
+  or `==` or `!=`
+- Replace constants with alternatives: 1 gets replaced by -1 or 0, a string
+  constant gets replaced by the empty string, etc.
+- Remove instructions
+- Change `return` instructions to return `None`/`Null`
+
+In the example, in mutant 1, `mutmut` replaced a `+` with a `-`, and in mutant 2
+it replaced a 1 with a 2.
+
+---
+
+## Assumptions
+
+The "competent programmer" hypothesis
+
+- Errors are caused by small slips rather than large scale design mistakes
+
+First-order mutations: Change only one thing at a time
+
+- This will miss cases where two mutations together break the test suite
+
+The coupling effect
+
+- Test data that can detect all first-order mutations is so sensitive that it
+  will also detect more complex errors
+
+---
+
+## Advantages of mutant testing
+
+- A better measure of test quality than coverage
+
+  - Research shows that mutant detection is more strongly correlated with real
+    fault detection than code coverage
+
+- Can catch subtle programming errors
+
+- Finds gaps in unit test coverage
+
+---
+
+## Used at Google
+
+> The described system is used by 6,000 engineers in Google on all code changes
+> they author or review, affecting in total more than 14,000 code authors as
+> part of the mandatory code review process. The system processes about 30% of
+> all diffs across Google that have statement coverage calculated.
+>
+> "State of Mutation Testing at Google"
+> <https://ai.google/research/pubs/pub46584>
+
+---
+
+## Disadvantages
+
+- Performance
+  - For any substantial program, the number of mutants will be very large
+  - Runs can take hours
+
+- False positives (i.e. mutations that are equivalent to the original program)
+  - There can be a lot of them
+  - Each surviving mutant needs to be checked by a human to determine whether it
+    is dangerous or not
+
+---
+
+## The cost
+
+> "As another data point about the cost of mutation testing, I tried mutmut on
+> another project with a 10-second test suite. It took mutmut 43 minutes to run
+> 513 mutants, of which 165 survived. I haven’t looked through them yet to see
+> what they mean."
+>
+> <https://nedbatchelder.com/blog/201903/mutmut.html>
+
+---
+
+## The cost (2)
+
+> "Even for ... small subject programs, the human effort needed to check a large
+> number of mutants for equivalence was almost prohibitive."
+>
+> Frankl et al., Journal of Systems and Software
+> <http://dx.doi.org/10.1016/S0164-1212(96)00154-9>
+
+---
+
+## Test suite optimisation
+
+Use mutant analysis to optimise test suites
+
+- If a particular test never kills any mutants, perhaps it is
+  - covered by other tests
+  - ineffective (like our first attempt at `test_increment()` above)
+- So get rid of it, and speed up the test suite
+
+---
+
+## Could we use mutation testing here?
+
+- Python: has `mutmut` and some others
+- Javascript: Stryker
+- Java: PITest
+- OCaml: 🙁
+
+The best mutation testing tools work on bytecode or compiled code to avoid the
+cost of recompiling every mutant. Could `ppx` be used to generate mutants for
+OCaml code?
+
+---
+
+## Links
+
+- <https://www.softwaretestinghelp.com/what-is-mutation-testing/:> Has a good
+  example
+
+- <https://itnext.io/start-killing-mutants-mutation-test-your-code-3bea71df27f2:>
+  Good on motivation, also good set of links at end.
+
+- <https://github.com/theofidry/awesome-mutation-testing:> Has a good list of
+  links to frameworks and papers
+
+- <https://blog.octo.com/mutation-testing-un-pas-de-plus-vers-la-perfection/:> In
+  French
+
+- <https://medium.com/appsflyer/tests-coverage-is-dead-long-live-mutation-testing-7fd61020330e:>
